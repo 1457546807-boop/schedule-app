@@ -10,7 +10,7 @@ app = Flask(__name__, static_folder="static")
 CORS(app)
 
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
-CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "https://vip.aipro.love/v1")
+CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "https://vip.aipro.love/v1/messages")
 
 PROMPT = """请仔细分析这张课表图片，识别出每天每节课的安排。
 
@@ -53,19 +53,20 @@ def analyze():
     img_b64 = base64.b64encode(img_bytes).decode("utf-8")
     media_type = file.content_type or "image/jpeg"
 
-    # OpenAI 兼容格式
     payload = {
-        "model": "claude-opus-4-7",
+        "model": "claude-sonnet-4-20250514",
         "max_tokens": 2000,
         "messages": [
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{media_type};base64,{img_b64}"
-                        }
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": img_b64,
+                        },
                     },
                     {
                         "type": "text",
@@ -78,16 +79,15 @@ def analyze():
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {CLAUDE_API_KEY}",
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01",
     }
 
-    api_url = CLAUDE_API_URL.rstrip("/") + "/chat/completions"
-
     try:
-        resp = httpx.post(api_url, json=payload, headers=headers, timeout=60)
+        resp = httpx.post(CLAUDE_API_URL, json=payload, headers=headers, timeout=60, follow_redirects=True)
         resp.raise_for_status()
         data = resp.json()
-        text = data["choices"][0]["message"]["content"]
+        text = "".join(c.get("text", "") for c in data.get("content", []))
 
         m = re.search(r"\{[\s\S]*\}", text)
         if not m:
