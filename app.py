@@ -9,8 +9,8 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
-ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "")
-ZHIPU_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "https://api.anthropic.com/v1/messages")
 
 PROMPT = """请仔细分析这张课表图片，识别出每天每节课的安排。
 
@@ -41,7 +41,7 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    if not ZHIPU_API_KEY:
+    if not CLAUDE_API_KEY:
         return jsonify({"error": "服务器未配置 API Key"}), 500
 
     if "image" not in request.files:
@@ -53,14 +53,19 @@ def analyze():
     media_type = file.content_type or "image/jpeg"
 
     payload = {
-        "model": "glm-4v-plus",
+        "model": "claude-sonnet-4-20250514",
+        "max_tokens": 2000,
         "messages": [
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{media_type};base64,{img_b64}"}
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": img_b64,
+                        },
                     },
                     {
                         "type": "text",
@@ -69,19 +74,19 @@ def analyze():
                 ]
             }
         ],
-        "max_tokens": 2000,
     }
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {ZHIPU_API_KEY}",
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01",
     }
 
     try:
-        resp = httpx.post(ZHIPU_API_URL, json=payload, headers=headers, timeout=60)
+        resp = httpx.post(CLAUDE_API_URL, json=payload, headers=headers, timeout=60)
         resp.raise_for_status()
         data = resp.json()
-        text = data["choices"][0]["message"]["content"]
+        text = "".join(c.get("text", "") for c in data.get("content", []))
 
         m = re.search(r"\{[\s\S]*\}", text)
         if not m:
