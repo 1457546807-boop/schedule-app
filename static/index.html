@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>空余时间统计 · 实验室</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f7f6f3; --surface: #ffffff; --border: #e4e2dc;
+    --border-strong: #ccc9c0; --text: #1a1915; --text-muted: #6b6860;
+    --text-hint: #a8a59e; --accent: #2563eb; --accent-light: #eff4ff;
+    --green: #16a34a; --green-light: #f0fdf4; --green-border: #bbf7d0;
+    --amber: #d97706; --amber-light: #fffbeb; --red: #dc2626;
+    --slot-free: #f0fdf4; --slot-free-text: #15803d;
+    --slot-busy: #f1f5f9; --slot-busy-text: #94a3b8;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  body { font-family: -apple-system,'PingFang SC','Microsoft YaHei',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding-bottom:80px; }
+  header { background:var(--surface); border-bottom:1px solid var(--border); padding:18px 24px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+  header h1 { font-size:16px; font-weight:600; }
+  header .sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .step-dots { display:flex; gap:6px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--border-strong); transition:background .2s; }
+  .dot.active { background:var(--accent); }
+  .dot.done { background:var(--green); }
+  main { max-width:560px; margin:0 auto; padding:24px 16px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; margin-bottom:16px; }
+  .card-title { font-size:13px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px; }
+  .nav-strip { display:flex; gap:8px; margin-bottom:20px; align-items:center; }
+  .nav-item { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-hint); }
+  .nav-item.active { color:var(--accent); font-weight:500; }
+  .nav-item.done { color:var(--green); }
+  .nav-num { width:22px; height:22px; border-radius:50%; border:1.5px solid currentColor; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; }
+  .nav-item.done .nav-num { background:var(--green); border-color:var(--green); color:#fff; }
+  .nav-arrow { color:var(--border-strong); font-size:10px; }
+  .name-wrap { display:flex; gap:10px; }
+  input[type="text"] { flex:1; height:42px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); padding:0 12px; font-size:15px; font-family:inherit; color:var(--text); background:var(--bg); outline:none; transition:border-color .15s,box-shadow .15s; }
+  input[type="text"]:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); background:#fff; }
+  .upload-zone { border:1.5px dashed var(--border-strong); border-radius:var(--radius); padding:36px 20px; text-align:center; cursor:pointer; transition:all .15s; position:relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color:var(--accent); background:var(--accent-light); }
+  .upload-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .upload-zone p { font-size:14px; color:var(--text-muted); line-height:1.5; }
+  .upload-zone .hint { font-size:12px; color:var(--text-hint); margin-top:4px; }
+  #preview-img { max-width:100%; border-radius:var(--radius-sm); border:1px solid var(--border); margin-top:12px; display:none; }
+  .btn { height:42px; padding:0 18px; border:1px solid var(--border-strong); border-radius:var(--radius-sm); font-size:14px; font-family:inherit; font-weight:500; cursor:pointer; background:var(--surface); color:var(--text); display:inline-flex; align-items:center; gap:6px; transition:all .12s; white-space:nowrap; }
+  .btn:hover { background:var(--bg); }
+  .btn:active { transform:scale(.98); }
+  .btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn-primary:hover { background:#1d4ed8; }
+  .btn-primary:disabled { background:#93b5f8; border-color:#93b5f8; cursor:not-allowed; transform:none; }
+  .btn-full { width:100%; justify-content:center; }
+  .btn-sm { height:32px; padding:0 12px; font-size:13px; }
+  .loading-wrap { text-align:center; padding:40px; display:none; }
+  .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; margin:0 auto 14px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-wrap p { font-size:14px; color:var(--text-muted); }
+  .loading-wrap .sub { font-size:12px; color:var(--text-hint); margin-top:4px; }
+  #result-section { display:none; }
+  .result-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+  .result-name { font-size:20px; font-weight:700; letter-spacing:-.02em; }
+  .result-meta { font-size:13px; color:var(--text-muted); margin-top:2px; }
+  .stat-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+  .stat-box { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; text-align:center; }
+  .stat-box .val { font-size:22px; font-weight:700; color:var(--accent); }
+  .stat-box .lbl { font-size:11px; color:var(--text-muted); margin-top:2px; }
+  .tt-wrap { overflow-x:auto; }
+  table.tt { width:100%; border-collapse:collapse; font-size:12px; }
+  .tt th { padding:6px 4px; text-align:center; color:var(--text-muted); font-weight:600; font-size:11px; border-bottom:1.5px solid var(--border); white-space:nowrap; }
+  .tt .period-label { padding:4px 8px; color:var(--text-hint); font-size:11px; white-space:nowrap; text-align:right; }
+  .tt td.free { background:var(--slot-free); color:var(--slot-free-text); text-align:center; padding:5px 2px; font-size:11px; font-weight:500; border:1px solid #bbf7d0; }
+  .tt td.busy { background:var(--slot-busy); color:var(--slot-busy-text); text-align:center; padding:5px 2px; font-size:11px; border:1px solid var(--border); }
+  .legend { display:flex; gap:12px; margin-top:10px; font-size:12px; color:var(--text-muted); align-items:center; }
+  .legend-dot { width:12px; height:12px; border-radius:3px; display:inline-block; margin-right:4px; }
+  .export-btns { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  pre.csv-preview { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:11px; font-family:monospace; color:var(--text-muted); overflow-x:auto; max-height:120px; overflow-y:auto; line-height:1.6; }
+  .error-box { background:#fef2f2; border:1px solid #fecaca; border-radius:var(--radius-sm); padding:12px 14px; font-size:13px; color:var(--red); margin-bottom:12px; display:none; }
+  .submissions { margin-top:24px; border-top:1px solid var(--border); padding-top:20px; display:none; }
+  .sub-title { font-size:13px; font-weight:600; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:.06em; }
+  .sub-row { display:flex; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); gap:10px; font-size:13px; }
+  .sub-row:last-child { border-bottom:none; }
+  .sub-avatar { width:32px; height:32px; border-radius:50%; background:var(--accent-light); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--accent); flex-shrink:0; }
+  .sub-name { font-weight:500; flex:1; }
+  .sub-meta { color:var(--text-muted); font-size:12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📅 空余时间统计</h1>
+    <div class="sub">上传课表截图，自动识别空闲时段</div>
+  </div>
+  <div class="step-dots">
+    <div class="dot active" id="dot-1"></div>
+    <div class="dot" id="dot-2"></div>
+    <div class="dot" id="dot-3"></div>
+  </div>
+</header>
+
+<main>
+  <div class="nav-strip">
+    <div class="nav-item active" id="nav-1"><div class="nav-num">1</div>输入姓名</div>
+    <div class="nav-arrow">›</div>
+    <div class="nav-item" id="nav-2"><div class="nav-num">2</div>上传课表</div>
+    <div class="nav-arrow">›</div>
+    <div class="nav-item" id="nav-3"><div class="nav-num">3</div>查看结果</div>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="card" id="step-name">
+    <div class="card-title">第一步 — 你是谁？</div>
+    <div class="name-wrap">
+      <input type="text" id="name-input" placeholder="输入你的姓名" maxlength="20" />
+      <button class="btn btn-primary" onclick="goToUpload()">下一步 →</button>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="card" id="step-upload" style="display:none">
+    <div class="card-title" id="upload-title">第二步 — 上传课表截图</div>
+    <div class="error-box" id="error-box"></div>
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" onchange="onFileSelect()" />
+      <span style="font-size:32px;display:block;margin-bottom:10px">📷</span>
+      <p>点击选择或直接拖入截图</p>
+      <div class="hint">支持 JPG / PNG / WEBP，课表 App 截图即可</div>
+    </div>
+    <img id="preview-img" alt="课表预览" />
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button class="btn" onclick="goBack()">← 返回</button>
+      <button class="btn btn-primary btn-full" id="analyze-btn" onclick="analyzeSchedule()" disabled>🔍 识别课表</button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-wrap" id="loading">
+    <div class="spinner"></div>
+    <p id="loading-text">正在识别课表...</p>
+    <div class="sub">AI 正在分析图片中的课程安排，约需 10 秒</div>
+  </div>
+
+  <!-- Result -->
+  <div id="result-section">
+    <div class="card">
+      <div class="result-header">
+        <div>
+          <div class="result-name" id="res-name"></div>
+          <div class="result-meta" id="res-meta"></div>
+        </div>
+        <button class="btn btn-sm" onclick="startOver()">重新提交</button>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="val" id="stat-free">0</div><div class="lbl">空余节次</div></div>
+        <div class="stat-box"><div class="val" id="stat-hours">0h</div><div class="lbl">空余时长</div></div>
+        <div class="stat-box"><div class="val" id="stat-busy">0</div><div class="lbl">上课节次</div></div>
+      </div>
+      <div class="tt-wrap"><table class="tt" id="result-table"></table></div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:var(--slot-free);border:1px solid #bbf7d0"></span>空余</span>
+        <span><span class="legend-dot" style="background:var(--slot-busy)"></span>有课</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">导出数据</div>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">以下 CSV 可直接用于后续统计脚本</p>
+      <pre class="csv-preview" id="csv-preview"></pre>
+      <div class="export-btns">
+        <button class="btn btn-primary btn-sm" onclick="downloadCSV()">⬇ 下载 CSV</button>
+        <button class="btn btn-sm" onclick="copyCSV()">📋 复制</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- All submissions -->
+  <div class="submissions" id="submissions">
+    <div class="sub-title">本周已提交成员</div>
+    <div id="sub-list"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-sm" onclick="downloadAllCSV()">⬇ 下载全部 CSV</button>
+      <button class="btn btn-sm" style="color:var(--red)" onclick="clearAll()">清空记录</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const DAYS = ['周一','周二','周三','周四','周五','周六','周日'];
+const PERIODS = [
+  {label:'第1节',time:'08:00'},{label:'第2节',time:'08:50'},
+  {label:'第3节',time:'09:55'},{label:'第4节',time:'10:45'},
+  {label:'第5节',time:'13:30'},{label:'第6节',time:'14:20'},
+  {label:'第7节',time:'15:15'},{label:'第8节',time:'16:05'},
+  {label:'第9节',time:'17:00'},{label:'第10节',time:'19:00'},
+  {label:'第11节',time:'19:50'},{label:'第12节',time:'20:40'},
+];
+
+let currentName='', currentFile=null, currentResult=null;
+let submissions = JSON.parse(localStorage.getItem('sched_subs')||'[]');
+
+function updateNav(step){
+  [1,2,3].forEach(i=>{
+    document.getElementById('nav-'+i).className='nav-item'+(i<step?' done':i===step?' active':'');
+    document.getElementById('dot-'+i).className='dot'+(i<step?' done':i===step?' active':'');
+  });
+}
+
+function goToUpload(){
+  const n=document.getElementById('name-input').value.trim();
+  if(!n){document.getElementById('name-input').focus();return;}
+  currentName=n;
+  document.getElementById('upload-title').textContent=`第二步 — ${n}，上传你的课表截图`;
+  document.getElementById('step-name').style.display='none';
+  document.getElementById('step-upload').style.display='block';
+  updateNav(2);
+}
+
+function goBack(){
+  document.getElementById('step-upload').style.display='none';
+  document.getElementById('step-name').style.display='block';
+  hideError(); updateNav(1);
+}
+
+function startOver(){
+  document.getElementById('result-section').style.display='none';
+  document.getElementById('step-name').style.display='block';
+  document.getElementById('name-input').value='';
+  document.getElementById('preview-img').style.display='none';
+  document.getElementById('file-input').value='';
+  document.getElementById('analyze-btn').disabled=true;
+  currentFile=null; updateNav(1);
+}
+
+function onFileSelect(){
+  const file=document.getElementById('file-input').files[0];
+  if(!file) return;
+  currentFile=file;
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=document.getElementById('preview-img');
+    img.src=e.target.result; img.style.display='block';
+  };
+  r.readAsDataURL(file);
+  document.getElementById('analyze-btn').disabled=false;
+  hideError();
+}
+
+const zone=document.getElementById('upload-zone');
+zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('dragover');});
+zone.addEventListener('dragleave',()=>zone.classList.remove('dragover'));
+zone.addEventListener('drop',e=>{
+  e.preventDefault(); zone.classList.remove('dragover');
+  const f=e.dataTransfer.files[0];
+  if(f&&f.type.startsWith('image/')){document.getElementById('file-input').files=e.dataTransfer.files;onFileSelect();}
+});
+
+async function analyzeSchedule(){
+  if(!currentFile){showError('请先选择课表截图');return;}
+  document.getElementById('step-upload').style.display='none';
+  document.getElementById('loading').style.display='block';
+  hideError(); updateNav(3);
+
+  try {
+    const form=new FormData();
+    form.append('image', currentFile);
+
+    const resp=await fetch('/analyze',{method:'POST',body:form});
+    const data=await resp.json();
+    if(!resp.ok) throw new Error(data.error||'请求失败');
+
+    currentResult={name:currentName, week:data.week_label||'', schedule:data.schedule, timestamp:new Date().toLocaleString('zh-CN')};
+    document.getElementById('loading').style.display='none';
+    renderResult(currentResult);
+    saveSubmission(currentResult);
+  } catch(err){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('step-upload').style.display='block';
+    updateNav(2);
+    showError('识别失败：'+err.message);
+  }
+}
+
+function renderResult(result){
+  document.getElementById('result-section').style.display='block';
+  document.getElementById('res-name').textContent=result.name;
+  document.getElementById('res-meta').textContent=(result.week?result.week+' · ':'')+result.timestamp;
+  const sch=result.schedule;
+  let busy=0,free=0;
+  let html='<thead><tr><th>节次</th>';
+  DAYS.forEach(d=>html+=`<th>${d}</th>`);
+  html+='</tr></thead><tbody>';
+  PERIODS.forEach((p,pi)=>{
+    html+=`<tr><td class="period-label">${p.label}<br><span style="font-size:10px;color:var(--text-hint)">${p.time}</span></td>`;
+    DAYS.forEach(d=>{
+      const b=(sch[d]||[]).includes(pi+1);
+      if(b){busy++;html+=`<td class="busy">●</td>`;}
+      else{free++;html+=`<td class="free">空</td>`;}
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  document.getElementById('result-table').innerHTML=html;
+  document.getElementById('stat-free').textContent=free;
+  document.getElementById('stat-hours').textContent=(free*0.75).toFixed(1)+'h';
+  document.getElementById('stat-busy').textContent=busy;
+  document.getElementById('csv-preview').textContent=generateCSV(result);
+  updateNav(3); renderSubmissions();
+}
+
+function generateCSV(r){
+  let lines=['姓名,星期,节次,时间,状态'];
+  DAYS.forEach(d=>PERIODS.forEach((p,pi)=>{
+    const b=(r.schedule[d]||[]).includes(pi+1);
+    lines.push(`${r.name},${d},${p.label},${p.time},${b?'有课':'空余'}`);
+  }));
+  return lines.join('\n');
+}
+
+function saveSubmission(r){
+  const i=submissions.findIndex(s=>s.name===r.name);
+  if(i>=0) submissions[i]=r; else submissions.push(r);
+  localStorage.setItem('sched_subs',JSON.stringify(submissions));
+  renderSubmissions();
+}
+
+function renderSubmissions(){
+  if(!submissions.length) return;
+  document.getElementById('submissions').style.display='block';
+  document.getElementById('sub-list').innerHTML=submissions.map(s=>{
+    const f=DAYS.reduce((a,d)=>a+(12-(s.schedule[d]||[]).length),0);
+    return `<div class="sub-row">
+      <div class="sub-avatar">${s.name.slice(0,2)}</div>
+      <div class="sub-name">${s.name}</div>
+      <div class="sub-meta">空余 ${f} 节 · ${s.timestamp}</div>
+      <button class="btn btn-sm" onclick="downloadOneCSV('${s.name}')">CSV</button>
+    </div>`;
+  }).join('');
+}
+
+function clearAll(){
+  if(!confirm('确定清空？')) return;
+  submissions=[];
+  localStorage.removeItem('sched_subs');
+  document.getElementById('submissions').style.display='none';
+}
+
+function downloadCSV(){if(currentResult) downloadText(generateCSV(currentResult),`${currentResult.name}_空余时间.csv`);}
+function downloadOneCSV(name){const s=submissions.find(x=>x.name===name);if(s) downloadText(generateCSV(s),`${name}_空余时间.csv`);}
+function downloadAllCSV(){
+  if(!submissions.length) return;
+  let lines=['姓名,星期,节次,时间,状态'];
+  submissions.forEach(s=>lines=lines.concat(generateCSV(s).split('\n').slice(1)));
+  downloadText(lines.join('\n'),`全员空余时间.csv`);
+}
+function downloadText(text,filename){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'}));
+  a.download=filename; a.click();
+}
+function copyCSV(){
+  navigator.clipboard.writeText(document.getElementById('csv-preview').textContent).then(()=>{
+    event.target.textContent='✓ 已复制';
+    setTimeout(()=>event.target.textContent='📋 复制',2000);
+  });
+}
+function showError(m){const b=document.getElementById('error-box');b.textContent=m;b.style.display='block';}
+function hideError(){document.getElementById('error-box').style.display='none';}
+
+renderSubmissions();
+document.getElementById('name-input').addEventListener('keydown',e=>{if(e.key==='Enter')goToUpload();});
+</script>
+</body>
+</html>
