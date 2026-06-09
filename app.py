@@ -55,7 +55,7 @@ def analyze():
     media_type = file.content_type or "image/jpeg"
 
     payload = {
-        "model": "claude-sonnet-4-20250514",
+       "model": "claude-3-5-sonnet-20241022",
         "max_tokens": 2000,
         "messages": [
             {
