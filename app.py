@@ -84,7 +84,7 @@ def analyze():
     }
 
     try:
-        resp = httpx.post(CLAUDE_API_URL, json=payload, headers=headers, timeout=60, follow_redirects=True)
+        resp = httpx.post(CLAUDE_API_URL + "/messages", json=payload, headers=headers, timeout=60, follow_redirects=True)
         resp.raise_for_status()
         data = resp.json()
         text = "".join(c.get("text", "") for c in data.get("content", []))
