@@ -1,6 +1,7 @@
 import os
 import base64
 import json
+import re
 import httpx
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -8,44 +9,10 @@ from flask_cors import CORS
 app = Flask(__name__, static_folder="static")
 CORS(app)
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ZHIPU_API_KEY = os.environ.get("ZHIPU_API_KEY", "")
+ZHIPU_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 
-@app.route("/")
-def index():
-    return send_from_directory("static", "index.html")
-
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    if not ANTHROPIC_API_KEY:
-        return jsonify({"error": "服务器未配置 API Key"}), 500
-
-    if "image" not in request.files:
-        return jsonify({"error": "未收到图片"}), 400
-
-    file = request.files["image"]
-    img_bytes = file.read()
-    img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-    media_type = file.content_type or "image/jpeg"
-
-    payload = {
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 2000,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": img_b64,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": """请仔细分析这张课表图片，识别出每天每节课的安排。
+PROMPT = """请仔细分析这张课表图片，识别出每天每节课的安排。
 
 请以严格的JSON格式返回，不要有任何其他文字：
 {
@@ -63,31 +30,59 @@ def analyze():
 
 说明：
 - schedule中每个key是星期几（周一到周日）
-- 值是数组，包含该天"有课"的节次编号（1-12）
-- 节次定义：1-2节早上第一二节，3-4节第三四节，5节午后第一节，6-7节下午，8-9节下午后段，10-12节晚上
+- 值是数组，包含该天有课的节次编号（1-12）
 - 如果图片中某天某节有课程内容（非空白），就把那个节次加入数组
 - 合并课（如跨3-4节）请把两节都加入
-- 只返回JSON，不要解释""",
+- 只返回JSON，不要解释"""
+
+@app.route("/")
+def index():
+    return send_from_directory("static", "index.html")
+
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    if not ZHIPU_API_KEY:
+        return jsonify({"error": "服务器未配置 API Key"}), 500
+
+    if "image" not in request.files:
+        return jsonify({"error": "未收到图片"}), 400
+
+    file = request.files["image"]
+    img_bytes = file.read()
+    img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+    media_type = file.content_type or "image/jpeg"
+
+    payload = {
+        "model": "glm-4v-plus",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{media_type};base64,{img_b64}"}
                     },
-                ],
+                    {
+                        "type": "text",
+                        "text": PROMPT
+                    }
+                ]
             }
         ],
+        "max_tokens": 2000,
     }
 
     headers = {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": f"Bearer {ZHIPU_API_KEY}",
     }
 
     try:
-        resp = httpx.post(ANTHROPIC_API_URL, json=payload, headers=headers, timeout=60)
+        resp = httpx.post(ZHIPU_API_URL, json=payload, headers=headers, timeout=60)
         resp.raise_for_status()
         data = resp.json()
-        text = "".join(c.get("text", "") for c in data.get("content", []))
+        text = data["choices"][0]["message"]["content"]
 
-        # 提取 JSON
-        import re
         m = re.search(r"\{[\s\S]*\}", text)
         if not m:
             return jsonify({"error": "AI 返回格式异常，请重试"}), 500
