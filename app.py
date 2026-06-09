@@ -13,7 +13,9 @@ CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
 CLAUDE_API_URL = os.environ.get("CLAUDE_API_URL", "https://api.anthropic.com/v1/messages")
 
 PROMPT = """请仔细分析这张课表图片，识别出每天每节课的安排。
-
+- 注意：课表第一列通常是"周日"不是"周一"，请仔细看列标题（一、二、三...或周一、周二...）
+- 判断有课的标准：格子里有彩色背景+文字内容就是有课，纯白色/空白格子就是空余
+- 课表列顺序严格按照图片中的标题来，不要自己假设
 请以严格的JSON格式返回，不要有任何其他文字：
 {
   "week_label": "课表上显示的周次或日期范围（如没有则留空字符串）",
